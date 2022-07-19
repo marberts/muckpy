@@ -14,7 +14,7 @@ from operator import gt
 def _lperm(n: int, k: int) -> float:
     return lgamma(n + 1) - lgamma(n - k + 1)
 
-def balanced_urn(balls: int, colors: list) -> dict:
+def balanced_urn(balls: int, colors: list[str]) -> dict[str, int]:
     """
     Make an urn with balls distributed as equally as possible across the
     different colors.
@@ -29,7 +29,7 @@ def balanced_urn(balls: int, colors: list) -> dict:
     Returns
     -------
     dict
-        An urn of the form {color: balls}.
+        An urn of the form {color: number of balls}.
     
     Examples
     --------
@@ -48,11 +48,10 @@ def balanced_urn(balls: int, colors: list) -> dict:
             )
     k = floor(balls / ncolor)
     d = balls - k * ncolor
-    counts = [k + 1]*d + [k]*(ncolor - d)
-    return dict(zip(colors, counts))
+    return dict(zip(colors, [k + 1]*d + [k]*(ncolor - d)))
 
-def expected_coverage(draws: list, 
-                      *urns: dict, 
+def expected_coverage(draws: list[int], 
+                      *urns: dict[str, int], 
                       replace: bool=False, 
                       exact: bool=False) -> float:
     """
@@ -65,7 +64,7 @@ def expected_coverage(draws: list,
         A list of integers giving the number of draws from each urn.
     *urns : dict
         A collections of urns, one for each element in draws, of the 
-        form {color: balls}.
+        form {color: number of balls}.
     replace : bool, optional
         Is sampling done with replacement? The default is False.
     exact : bool, optional
@@ -91,13 +90,13 @@ def expected_coverage(draws: list,
         raise ValueError(
             "number of draws does not equals the number of urns"
             )
-    balls = [sum(urn.values()) for urn in urns]
-    if any(map(gt, draws, balls)):
+    balls = [sum(u.values()) for u in urns]
+    if any(map(gt, draws, balls)) and not replace:
         raise ValueError(
-            "cannot draw more balls than are in the urns"
+            "cannot draw more balls than are in the urns without replacement"
             )
     colors = set().union(*urns)
-    urn = {color: [urn.get(color, 0) for urn in urns] for color in colors}
+    urn = {c: [u.get(c, 0) for u in urns] for c in colors}
     if replace:
         den = repeat(None)
         def p(color, balls, n, den): # den is a dummy argument

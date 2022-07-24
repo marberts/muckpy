@@ -7,12 +7,25 @@ Steve Martin
 
 __all__ = ["balanced_urn", "expected_coverage"]
 
-from math import exp, prod, fsum, lgamma, comb, floor, isclose
+from math import exp, prod, fsum, lgamma, comb, floor
 from itertools import repeat
 from operator import gt
 
+# Analogous to R's lchoose()
 def _lperm(n: int, k: int) -> float:
     return lgamma(n + 1) - lgamma(n - k + 1)
+
+def _urn_matrix(*urns: dict[str, int]) -> dict[str, list]:
+    # {'red': 1, 'blue': 2, 'green': 3}
+    # {'red': 4, 'green': 5}
+    # {'red': 6, 'blue': 7}
+    #       |
+    #       v
+    #   red 1 4 6
+    #  blue 2 0 7
+    # green 3 5 0
+    colors = set().union(*urns)
+    return {c: [u.get(c, 0) for u in urns] for c in colors}
 
 def balanced_urn(balls: int, colors: list[str]) -> dict[str, int]:
     """
@@ -42,12 +55,12 @@ def balanced_urn(balls: int, colors: list[str]) -> dict[str, int]:
             "cannot make an urn with a negative number of balls"
             )
     ncolor = len(colors)
-    if len == 0:
+    if not len:
         raise ValueError(
             "there must be colors for the urn"
             )
     k = floor(balls / ncolor)
-    d = balls - k * ncolor
+    d = balls - k * ncolor # 0 <= d < ncolor
     return dict(zip(colors, [k + 1]*d + [k]*(ncolor - d)))
 
 def expected_coverage(draws: list[int], 
@@ -63,13 +76,13 @@ def expected_coverage(draws: list[int],
     draws : list
         A list of integers giving the number of draws from each urn.
     *urns : dict
-        A collections of urns, one for each element in draws, of the 
+        A collection of urns, one for each element in draws, of the 
         form {color: number of balls}.
     replace : bool, optional
         Is sampling done with replacement? The default is False.
     exact : bool, optional
-        Use Python's arbitrary-precision integers for calculating the
-        ratio of binomial coefficients when replace=False? If False, use a 
+        If True, use Python's arbitrary-precision integers for calculating the
+        ratio of binomial coefficients when replace=False. If False, use a 
         faster floating-point approximation. The default is False.
 
     Returns
@@ -84,6 +97,9 @@ def expected_coverage(draws: list[int],
     2.25
     >>> expected_coverage([3], urn, replace=True)
     2.0
+    
+    >>> expected_coverage([1, 1], {"a": 1, "b": 1}, {"a": 1, "c": 1})
+    1.75
     """
     
     if len(draws) != len(urns):
@@ -95,8 +111,9 @@ def expected_coverage(draws: list[int],
         raise ValueError(
             "cannot draw more balls than are in the urns without replacement"
             )
-    colors = set().union(*urns)
-    urn = {c: [u.get(c, 0) for u in urns] for c in colors}
+    urn = _urn_matrix(*urns)
+    # Function that gives probability of drawing no balls of a given color
+    # Precompute the denominators for each urn for efficiency
     if replace:
         den = repeat(None)
         def p(color, balls, n, den): # den is a dummy argument
@@ -113,9 +130,14 @@ def expected_coverage(draws: list[int],
                     return exp(_lperm(balls - color, n) - den)
                 else:
                     return 0.0
-    return fsum(1 - prod(map(p, urn[c], balls, draws, den)) for c in colors)        
+    # Apply over each urn to get the probability of drawing no balls of a
+    # given color across all urns, and add the complements to get the
+    # expected number of different colors
+    return fsum(1 - prod(map(p, urn[c], balls, draws, den)) for c in urn)
         
 if __name__ == "__main__":
+    from math import isclose
+    
     # Tests for balanced_urn()
     assert balanced_urn(0, range(1)) == {0: 0}
     assert balanced_urn(4, range(1)) == {0: 4}
@@ -180,6 +202,9 @@ if __name__ == "__main__":
     # Known cases
     assert isclose(expected_coverage([2, 2], urn1, urn1, replace=True),
                    expected_coverage([4], {"a": 2, "b": 4, "c": 6}, replace=True))
+    assert isclose(expected_coverage([1, 1], {"a": 1, "b": 1}, {"a": 1, "c": 1}), 1.75)
+    assert isclose(expected_coverage([1, 1], {"a": 1, "b": 1}, {"a": 1, "c": 1}, exact=True), 1.75)
+    assert isclose(expected_coverage([1, 1], {"a": 1, "b": 1}, {"a": 1, "c": 1}, replace=True), 1.75)
     
     urn4 = {"d": 12, "b": 1}
     assert isclose(expected_coverage([3, 2, 4], urn3, urn2, urn4),
@@ -188,6 +213,22 @@ if __name__ == "__main__":
                    3.56335664335664)    
     assert isclose(expected_coverage([3, 2, 4], urn3, urn2, urn4, replace=True),
                    3.4654180416477)
+    
+    # Simulation to help verify
+    # from random import sample, choices
+    # from statistics import mean
+
+    # wor, wr = [], []
+
+    # u3, u2, u4 = ["".join(k*v for k, v in zip(urn, urn.values())) 
+    #               for urn in [urn3, urn2, urn4]]
+
+    # for i in range(10000):
+    #     wor.append(len(set(sample(u3, k=3) + sample(u2, k=2) + sample(u4, k=4))))
+    #     wr.append(len(set(choices(u3, k=3) + choices(u2, k=2) + choices(u4, k=4))))
+
+    # mean(wor)
+    # mean(wr)
 
     print("Passing all tests.")    
     

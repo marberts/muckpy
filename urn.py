@@ -5,9 +5,9 @@ different colors from an urn.
 Steve Martin
 """
 
-__all__ = ["balanced_urn", "expected_coverage"]
+__all__ = ["balanced_urn", "uniform_urn", "expected_coverage"]
 
-from math import exp, prod, fsum, lgamma, comb, floor
+from math import exp, prod, fsum, lgamma, comb
 from itertools import repeat
 from operator import gt
 
@@ -16,18 +16,14 @@ def _lperm(n: int, k: int) -> float:
     return lgamma(n + 1) - lgamma(n - k + 1)
 
 def _urn_matrix(*urns: dict[str, int]) -> dict[str, list]:
-    # {'red': 1, 'blue': 2, 'green': 3}
-    # {'red': 4, 'green': 5}
-    # {'red': 6, 'blue': 7}
-    #       |
-    #       v
-    #   red 1 4 6
-    #  blue 2 0 7
-    # green 3 5 0
+    # {'red': 1, 'blue': 2, 'green': 3}        red 1 4 6
+    # {'red': 4, 'green': 5}             =>   blue 2 0 7
+    # {'red': 6, 'blue': 7}                  green 3 5 0
+
     colors = set().union(*urns)
     return {c: [u.get(c, 0) for u in urns] for c in colors}
 
-def balanced_urn(balls: int, colors: list[str]) -> dict[str, int]:
+def balanced_urn(balls: int, colors: set[str]) -> dict[str, int]:
     """
     Make an urn with balls distributed as equally as possible across the
     different colors.
@@ -36,17 +32,17 @@ def balanced_urn(balls: int, colors: list[str]) -> dict[str, int]:
     ----------
     balls : int
         Number of balls in the urn.
-    colors : list
-        List of colors in the urn.
+    colors : set[str]
+        The set of colors in the urn.
 
     Returns
     -------
-    dict
+    dict[str, int]
         An urn of the form {color: number of balls}.
     
     Examples
     --------
-    >>> balanced_urn(4, ["red", "blue", "green"])
+    >>> balanced_urn(4, {"red", "blue", "green"})
     {'red': 2, 'blue': 1, 'green': 1}
     """
     
@@ -54,14 +50,51 @@ def balanced_urn(balls: int, colors: list[str]) -> dict[str, int]:
         raise ValueError(
             "cannot make an urn with a negative number of balls"
             )
-    ncolor = len(colors)
-    if not len:
+    n = len(set(colors))
+    if n == 0:
         raise ValueError(
             "there must be colors for the urn"
             )
-    k = floor(balls / ncolor)
-    d = balls - k * ncolor # 0 <= d < ncolor
-    return dict(zip(colors, [k + 1]*d + [k]*(ncolor - d)))
+    k = balls // n
+    r = balls - k * n # 0 <= d < n
+    return dict(zip(colors, [k + 1]*r + [k]*(n - r)))
+
+def uniform_urn(balls: int, colors: set[str]) -> dict[str, int]:
+    """
+    Make an urn with balls distributed as uniformly as possible across the
+    different colors.
+
+    Parameters
+    ----------
+    balls : int
+        Number of balls in the urn.
+    colors : set[str]
+        The set of colors in the urn.
+        
+    Returns
+    -------
+    dict[str, int]
+        An urn of the form {color: number of balls}.
+        
+    Examples
+    --------
+    >>> uniform_urn(6, {"red", "blue", "green"})
+    {'red': 1, 'blue': 2, 'green': 3}
+    """
+    
+    n = len(set(colors))
+    if n == 0:
+        raise ValueError(
+            "there must be colors for the urn"
+            )
+    k = int(n * (n + 1) / 2)
+    if balls < k:
+        raise ValueError(
+            f"there must be a least {k} balls in the urn"
+            )
+    a = (balls - k) // n + 1
+    r = balls - (a - 1) * n - k
+    return dict(zip(colors, [a + i + (i < r) for i in range(n)])) 
 
 def expected_coverage(draws: list[int], 
                       *urns: dict[str, int], 
@@ -73,9 +106,9 @@ def expected_coverage(draws: list[int],
 
     Parameters
     ----------
-    draws : list
+    draws : list[int]
         A list of integers giving the number of draws from each urn.
-    *urns : dict
+    *urns : dict[str, int]
         A collection of urns, one for each element in draws, of the 
         form {color: number of balls}.
     replace : bool, optional
@@ -97,7 +130,6 @@ def expected_coverage(draws: list[int],
     2.25
     >>> expected_coverage([3], urn, replace=True)
     2.0
-    
     >>> expected_coverage([1, 1], {"a": 1, "b": 1}, {"a": 1, "c": 1})
     1.75
     """
@@ -153,6 +185,19 @@ if __name__ == "__main__":
     # Bounded by floor and ceil
     assert min(balanced_urn(78, range(11)).values()) == 7
     assert max(balanced_urn(78, range(11)).values()) == 8
+    
+    # Tests for uniform urn
+    assert uniform_urn(6, range(3)) == {0: 1, 1: 2, 2: 3}
+    assert uniform_urn(7, range(3)) == {0: 2, 1: 2, 2: 3}
+    assert uniform_urn(8, range(3)) == {0: 2, 1: 3, 2: 3}
+    assert uniform_urn(9, range(3)) == {0: 2, 1: 3, 2: 4}
+    
+    # Length and sum are determined by the length of colors and balls
+    assert len(uniform_urn(189, range(13))) == 13
+    assert sum(uniform_urn(189, range(13)).values()) == 189
+    
+    assert min(uniform_urn(465, range(30)).values()) == 1
+    assert max(uniform_urn(465, range(30)).values()) == 30
     
     # Tests for expected_coverage()
     urn1 = {"a": 1, "b": 2, "c": 3, "d": 0}

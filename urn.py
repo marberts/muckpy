@@ -50,7 +50,8 @@ def balanced_urn(balls: int, colors: set[str]) -> dict[str, int]:
         raise ValueError(
             "cannot make an urn with a negative number of balls"
             )
-    n = len(set(colors))
+    colors = set(colors)
+    n = len(colors)
     if n == 0:
         raise ValueError(
             "there must be colors for the urn"
@@ -82,7 +83,8 @@ def uniform_urn(balls: int, colors: set[str]) -> dict[str, int]:
     {'red': 1, 'blue': 2, 'green': 3}
     """
     
-    n = len(set(colors))
+    colors = set(colors)
+    n = len(colors)
     if n == 0:
         raise ValueError(
             "there must be colors for the urn"
